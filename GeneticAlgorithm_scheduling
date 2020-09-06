@@ -1,0 +1,691 @@
+// machines and jobs index begin from 0 to m and n correspondingly and machine i is the machine (i+1)th in order and for job is the same thing
+//so for example machine 3 is the 4th machine (0,1,2,3)
+//just for test denotes cout commands that are debugging cout.
+#include <iomanip>
+#include<stdlib.h>         		
+#include "stdafx.h"
+#include<stdio.h>	
+#include<conio.h>         		
+#include <iostream>
+#include <fstream> //to work with files
+#include <math.h>
+#include <algorithm> // for std::find
+#include <iterator> // for std::begin, std::end
+#include<istream>
+#include <string.h>
+#include <assert.h> //it is used to verify assumptions made by the program and print a diagnostic message if this assumption is false
+#include <vector>
+
+
+
+/*Problem Parameters*/
+const int populationsize = 10; //population size and all arrays have this size
+int	Machines = 1; //Machine size that is used for different things
+int	Jobs = 2; //Jobs size that is used for different things. Number of Jobs work like chrome size
+const float mutationprobability = .75;//this is the probability in which we do mutation
+int pindex = 1;
+int iterations = 18;//iterations of algorithm
+using  namespace std;
+typedef class Chrom             		// creating the chrom structure
+{
+public:
+	vector<vector < int>> order;// this holds the order number of a job
+	vector<vector <float>> WaitingTime; //this is wij in the model
+	vector<vector <float>> StartTime;
+	vector<vector <float>> finish;//finishig processing the jobs on a machine
+
+	float fit;
+	void variablesresize() {
+
+		int i = 0, j, k;
+		float a;
+
+		std::vector<float> datapoints;
+
+		std::ifstream myfile("Input.dat", std::ios_base::in);
+
+
+		i = 0;//making zero counter of characters
+		myfile.open("Input.dat");//now we reread numerical values
+
+		while (!myfile.eof())
+		{
+			myfile >> a;
+
+			if (!myfile) // not an int
+			{
+				myfile.clear(); // clear error status
+				myfile.ignore(1); // skip one char at input
+			}
+			else
+			{
+
+				datapoints.push_back(a);
+				++i;
+			}
+		}
+
+
+		myfile.close();
+
+		Jobs = datapoints[0];
+
+		Machines = datapoints[1];
+
+		WaitingTime.resize(Machines);
+		StartTime.resize(Machines);
+		finish.resize(Machines);
+		order.resize(Machines);
+
+		for (int i = 0; i < Machines - 1; ++i)
+		{
+			WaitingTime[i].resize(Jobs);
+		}
+
+		for (int i = 0; i < Machines; ++i)
+
+		{
+			StartTime[i].resize(Jobs);
+			finish[i].resize(Jobs);
+			order[i].resize(Jobs);
+		}
+
+
+	}
+
+} chrom;
+
+
+
+class Problem {
+
+public:
+	vector<vector <int>> Processing;
+	vector<vector < int>> t1;
+	int M;
+	int W;
+
+	void setvectorsize()
+	{ //changing size of each vector to Machines and adding another dimension
+
+		Processing.resize(Machines);
+		t1.resize(Machines);
+
+		//cout << "machine size is:" << Machines;
+
+
+		for (int i = 0; i < Machines; ++i)
+		{
+			Processing[i].resize(Jobs);
+			t1[i].resize(Jobs);//changing size of vectors to Jobs and adding another dimension
+		}
+	}
+};
+
+
+
+chrom parent[populationsize];
+chrom poptemp;
+chrom child[populationsize];
+chrom childxover[populationsize];
+
+void *initialize(chrom parent[populationsize]);    	//defining the functions that we will use
+float ChElementsCalc(chrom &child, int pindex);
+float cmaxcalc(chrom &pop);
+void *selection(chrom parent[populationsize], chrom child[populationsize]);
+void *mutation(chrom child[populationsize]);
+Problem ProblemConstraint;//defining problem constraints from the type of problem and it is a public struct
+void VariablesInitiiation(int &Machines, int &Jobs);//calling Machines and jobs by reference and setting size of vectors with respect to the acquired size of files and adding constraints to class ProblemConstraint
+void vectordimension(chrom ch[populationsize]);
+
+
+
+
+float maximum(float a, float b);//returns maximum of two values
+float min(float a, float b);//returns minimum of two values
+void main()								// the main function
+{
+	int i, j, k, k2;
+	double random;
+	float test;
+	std::ofstream output;
+
+	correctiterations:
+	// creating a vector of child
+	if (iterations < 2) {
+		cout << "Please enter again the number of iterations greater than 1:";
+		cin >> iterations;             	// enter the no. of iterations in iterations
+	}
+
+
+	if (iterations < 1)                               	// if a negative or zero number is inserted .. enter iterations again
+	{
+		cout << "population must be equal to or greater than one";
+		goto correctiterations;
+	}
+ 
+	VariablesInitiiation(Machines, Jobs);//calling Machines and jobs by reference and setting size of vectors with respect to the acquired size of files and getting data of parameters
+
+	ProblemConstraint.setvectorsize();//set vector size of parameters problem 
+
+	vectordimension(parent);//adding dimensions to the array of struct of chromes for parent must be checked
+
+ 
+
+	vectordimension(child);//adding dimensions to the array of struct of chromes for parent
+
+
+	
+	initialize(parent);                       	//generating initial population
+
+//	output.open("output.txt");
+
+	for (i = 0; i < iterations; i++)                      	// loop iterations times
+	{
+		random = ((double)rand() / ((RAND_MAX)));//this is the randome number for doing cross over
+
+
+		for (j = 0; j < populationsize; j++)
+			child[j] = parent[j];             	//copy the chromes of popocurrent to child and after that we update child in selection function
+
+ 			 
+
+
+		
+		if (random < mutationprobability)
+			mutation(child);                       	//mutate with a low probability
+
+
+
+		selection(parent, child);                    	//selects the best chromes from parent and children chromosomes
+
+	}
+
+	//output.close();
+
+//	cout << "Iterations have ended";
+
+
+	cout  << "End of  the algorithm";
+
+	
+
+}                                            	//end of main
+//
+void VariablesInitiiation(int &Machines, int &Jobs)//calling Machines and jobs by reference and setting size of vectors with respect to the acquired size of files
+{
+
+	int i = 0, j, k;
+	float a;
+
+	std::vector<float> datapoints;
+
+	std::ifstream myfile("Input.dat", std::ios_base::in);
+
+
+	i = 0;//making zero counter of characters
+	myfile.open("Input.dat");//now we reread numerical values
+
+	while (!myfile.eof())
+	{
+		myfile >> a;
+
+		if (!myfile) // not an int
+		{
+			myfile.clear(); // clear error status
+			myfile.ignore(1); // skip one char at input
+		}
+		else
+		{
+			datapoints.push_back(a);
+			++i;
+		}
+	}
+
+
+	myfile.close();
+
+	//now assiging values to parameters
+	Jobs = datapoints[0];
+
+	Machines = datapoints[1];
+	ProblemConstraint.setvectorsize();//setting vector size for problem constraint
+
+	ProblemConstraint.M = datapoints[2];
+	ProblemConstraint.W = datapoints[3];
+
+	/*assiging values to processing*/
+	for (i = 0; i < Machines; i++)
+		for (j = 0; j < Jobs; j++)
+		{
+			ProblemConstraint.Processing[i][j] = datapoints[4 + 2 * Jobs*(Machines - 1) + i * Jobs + j];
+		}
+
+
+	/*assiging values to t1*/
+	if (Machines > 1)
+		for (i = 0; i < Machines - 1; i++)
+			for (j = 0; j < Jobs; j++)
+			{
+				ProblemConstraint.t1[i][j] = datapoints[4 + i * Jobs + j];//initial number for t1 is data array is 4 and we have rows with the size of Machines and each row has Jobs data points
+			}
+
+
+
+	for (j = 0; j < Jobs; j++)
+		ProblemConstraint.t1[Machines - 1][j] = 0;
+
+	//**now we try to work onvectors related to parent and child:
+
+	for (i = 0; i < populationsize; i++)//this is a function for defining size of poppcurrent and child
+	{
+		parent[i].variablesresize();
+		child[i].variablesresize();
+	}
+
+	for (i = 0; i < populationsize; i++)//this is a function for defining size of poppcurrent and child
+		for (j = 0; j < Machines; j++)//this is a function for defining size of poppcurrent and child
+			for (k = 0; k < Jobs; k++)//this is a function for defining size of poppcurrent and child
+
+			{
+				parent[i].finish[j][k] = 0;
+				parent[i].StartTime[j][k] = 0;
+				parent[i].order[j][k] = 0;
+
+			}
+
+
+
+
+
+	for (i = 0; i < populationsize; i++)//this is a function for defining size of poppcurrent and child
+		for (j = 0; j < Machines - 1; j++)//this is a function for defining size of poppcurrent and child
+			for (k = 0; k < Jobs; k++)//this is a function for defining size of poppcurrent and child
+
+			{
+				parent[i].WaitingTime[j][k] = 0;
+
+			}
+	for (i = 0; i < populationsize; i++)//this is a function for defining size of poppcurrent and child
+	{
+		child[i] = parent[i];
+	}
+
+
+
+
+}
+
+void *initialize(chrom parent[populationsize])               	//takes a pointer to a chrom of 4 elements, this is where we should put constraints
+{
+
+	int i, j, k, m, l, value, random;
+
+	for (i = 0; i < populationsize; i++)                          // loop of j to choose chromes from [0] to [3]
+	{
+		for (j = 0; j < Machines; j++)            			// loop of i to choose the gen of the chrom from  [0] to [5]
+			for (k = 0; k < Jobs; k++)            			// loop of i to choose the gen of the chrom from  [0] to [5]
+
+			{
+				parent[i].order[j][k] = k + 1;//this number is order of Job K on machine J in population number i
+			}
+	}   // end of for(i)
+
+	if (populationsize > 1)
+		for (i = 1; i < populationsize; i++)                          // loop of j to choose chromes from [0] to [3]
+		{
+			random_shuffle(&parent[i].order[0][0], &parent[i].order[0][Jobs - 1]);//randomizing order of the jobs
+
+
+			if (Machines > 1)
+				for (j = 1; j < Machines; j++)            			// loop of i to choose the gen of the chrom from  [0] to [5]
+					for (k = 0; k < Jobs; k++)            			// loop of i to choose the gen of the chrom from  [0] to [5]
+					{
+						parent[i].order[j][k] = parent[i].order[0][k];
+					}
+		}
+
+
+
+	pindex = i;
+	//cout << "in initilize function, population considering in x function has index= " << pindex << '\n';
+
+	for (i = 0; i < populationsize; i++)
+		child[i] = parent[i];
+
+
+
+
+	for (i = 0; i < populationsize; i++)
+	{
+		//	cout << "population= " << i << "and parent[i].order[0][0]= " << parent[i].order[0][0]<<'\n';
+		poptemp = parent[i];
+
+
+		ChElementsCalc(poptemp, pindex);
+		cmaxcalc(poptemp);
+		parent[i] = poptemp;
+
+	}
+
+	
+	pindex = i;
+
+	return(0);
+}                              	//end of initialize function
+
+float ChElementsCalc(chrom &popx, int pindex)        	//ChElementCalc function that calculations the values of a given chrom, p is populationindex 
+{
+	//cout << "*************start of x function**********" << '\n' << '\n';
+	int t = 0;
+	int i, i2 = 0, j, k, orderindex = 0, previousjobindex, firstjobindex, l;
+	float temp, extrawait = 0;
+	//sorting chromosoms based on the population
+	vector < int> cover;
+	cover.resize(Machines);//wait time before machine..k
+
+	//1. assigning value for the first Job:
+
+	//1.1. assigning values for the first job first Machine
+
+	for (k = 0; k < Jobs; k++)
+	{
+		if (popx.order[0][k] == 1)//first job that is done on the first machine
+		{
+			firstjobindex = k;
+			popx.WaitingTime[0][k] = ProblemConstraint.t1[0][k];
+			popx.StartTime[0][k] = 0;
+			popx.finish[0][k] = ProblemConstraint.Processing[0][k];
+
+			goto secondmachine1stJob;
+		}
+	}
+
+secondmachine1stJob://now we find values after the first machine for the first job
+
+	//1.2. assigning values for the machines after first machine and the first job
+
+	for (i = 1; i < Machines; i++)
+	{
+		//if (popx.order[0][k] == 1)//first job that is done on the first machine
+		//{
+		if (i < Machines - 1) // we do not have t1 at the last machine
+			popx.WaitingTime[i][firstjobindex] = ProblemConstraint.t1[i][firstjobindex];
+
+
+		popx.StartTime[i][firstjobindex] = popx.finish[i - 1][firstjobindex] + ProblemConstraint.t1[i - 1][firstjobindex];
+		popx.finish[i][firstjobindex] = ProblemConstraint.Processing[i][firstjobindex] + popx.StartTime[i][firstjobindex];
+
+	}
+
+
+
+	//2. now at the next step we try to find the related indices of other jobs
+
+	// 2.A, case 1,  here we decrease waiting time by increasing start time for the first machine
+	for (k = 1; k < Jobs; k++)//assigning values for the jobs after the first job in the first machine, for example 2nd,3rd or kth job:
+	{
+		//These for and if, find the finish time of precedent job(with order k) of job with order k+1:
+		//for (i = 0; i < Machines-1; i++) //in permutation we do not need this
+		fill(cover.begin(), cover.end(), 0);
+		extrawait = 0;
+
+		i2 = 0;
+		l = 0;
+		i = 0;
+
+		for (l = 0; l < Jobs; l++) //
+			if (popx.order[0][l] == k)
+				previousjobindex = l;//finding index of the previous job
+
+
+		for (l = 0; l < Jobs; l++) //
+				//finding indice and finish time of the job with index k+1
+			if (popx.order[0][l] == k + 1)	//if it is not first job, then the start time is equal to finish time of previous job 
+				//that we can find it using a sort, in permutation we use 0
+			{
+
+			restartcalculation://if we increase start time at the first machine we need this
+
+				for (i = 0 + i2; i < Machines; i++)// we move on machines using this for
+				{
+				restartcalculationformachine0:
+
+					cout << '\n';
+	 
+
+				
+
+					if (i == 0)//if it is first machine or the job that does not have delay then start time is only finish time of the previous job
+						popx.StartTime[i][l] = popx.finish[i][previousjobindex] + cover[0];
+
+					popx.WaitingTime[i][l] = ProblemConstraint.t1[i][l];
+
+
+					
+					if (i > 0)//if it is not first machine then start time may be finish time of previous job or finish time of job on previous machine
+									{
+						popx.StartTime[i][l] = maximum(popx.finish[i][previousjobindex], popx.finish[i - 1][l] + ProblemConstraint.t1[i - 1][l]) + cover[i];// +extrawait;
+			 
+
+
+					}
+
+
+
+
+
+
+				popx.finish[i][l] = ProblemConstraint.Processing[i][l] + popx.StartTime[i][l];
+					//cout << " and popx.finish[" << i << "][" << l << "]= " << ProblemConstraint.Processing[i][l] << "+" << popx.StartTime[i][l] << "=" << popx.finish[i][l] << '\n';
+
+					if (i > 0)//calculating waiting time and see if it is less than t2 then increase start time.
+					{
+						popx.WaitingTime[i - 1][l] = popx.StartTime[i][l] - popx.finish[i - 1][l];
+
+						//cout << " and popx.WaitingTime[" << i - 1 << "][" << l << "]= " << popx.WaitingTime[i - 1][l] << '\n';
+
+					}
+
+
+
+ 
+					//cout << "popx.WaitingTime[i-1][l] =" << popx.WaitingTime[i - 1][l] << '\n';
+
+
+
+				}//for (i = 0 + i2; i < Machines; i++)	
+
+				extrawait = 0;//after each job we make it zero
+
+			}			
+
+	}//for (k = 1; k < Jobs; k++)
+calculationpopfit:
+	cmaxcalc(popx); //case 1 of popfit
+
+	return(0);
+}
+// end ChElementcalc function
+//Start of cmaxcalc function
+float cmaxcalc(chrom &pop)          		// Here, cmaxcalc function that gives c-max
+{
+	float penaltywait = 0, totalwait = 0, totalwaitjob = 0;
+	int cmax, j, k, penalty = 0;
+	cmax = 0;
+
+	//we calculate c-max based on the the last job
+	for (k = 0; k < Jobs; k++) //This for and if find the finish time of previous job and related index of it
+		if (pop.order[Machines - 1][k] == Jobs)
+		{
+			cmax = pop.finish[2][k];//debugging code
+
+		}//this is cmax but it is not the fitness that we use, we need to consider penalty for violation of constraints as well
+
+
+		//cout << '\n';
+	k = 0;
+	for (k = 0; k < Jobs; k++)
+		for (j = 0; j < Machines - 1; j++)//update waiting time values
+		{
+			penaltywait += pop.StartTime[j + 1][k] - pop.finish[j][k];
+			//cout << penaltywait << '\n';
+			pop.WaitingTime[j][k] = penaltywait;//double check!!!***
+		}
+
+	//we calculate waiting time of each job and since we cannot use += since it is not calculating, we use two other variables
+	for (k = 0; k < Jobs; k++)
+	{
+		totalwaitjob = 0;
+		for (j = 0; j < Machines - 1; j++)//they start after the second machine
+		{
+			//cout << "at the first pop.WaitingJob[" << k << "]= " << pop.WaitingJob[k];
+			penaltywait = pop.WaitingTime[j][k];
+			//cout << '\n';
+		}// we calculate waiting time of each job
+
+	}
+
+
+
+	pop.fit = cmax + (penalty);
+	return(0);
+}
+//End of cmaxcalc function
+
+void *selection(chrom parent[populationsize], chrom child[populationsize])   	// selection takes a pointer to array of chroms
+{
+
+	int i, j, t;
+	chrom temp;                            	//temp chrome to use in sorting
+
+	for (i = 0; i < populationsize - 1; i++)               		//sorting the given set due to fitness for parent
+		for (j = 0; j < populationsize - 1; j++)
+		{
+			if (parent[j + 1].fit < parent[j].fit)
+			{
+				temp = parent[j + 1];
+				parent[j + 1] = parent[j];
+				parent[j] = temp;
+			}   // end of if
+		}                // end of for loop
+
+
+	for (i = 0; i < populationsize - 1; i++)               		//sorting the given set due to fitness for child
+		for (j = 0; j < populationsize - 1; j++)
+		{
+			if (child[j + 1].fit < child[j].fit)
+			{
+				temp = child[j + 1];
+				child[j + 1] = child[j];
+				child[j] = temp;
+			}   // end of if
+		}                // end of for loop
+
+
+
+	if (iterations > 0)// after first iteration we give do such assignment, since at the first iteration child values are only zero
+		for (i = int(populationsize / 2); i < populationsize; i++)               		//updating current population by comparing child and parent and assigning first half of the best child to parent
+		{
+			t = 0;
+			parent[i] = child[t];  // we assign the second of of the child to popocurrent[i]
+			t++;//we use this as an iterator for child
+		}                // end of for loop
+
+	for (i = 0; i < populationsize - 1; i++)               		//sorting the new parent
+		for (j = 0; j < populationsize - 1; j++)
+		{
+			if (parent[j + 1].fit < parent[j].fit)
+			{
+				temp = parent[j + 1];
+				parent[j + 1] = parent[j];
+				parent[j] = temp;
+			}   // end of if
+		}
+
+	   	  
+	return(0);
+}                       //end of pick chromes function
+
+ void *mutation(chrom child[populationsize])   // mutation funtion given a pointer to array of chromes
+{
+	int i, j;
+	int temp, randomjob;
+	float random, randommachine;
+
+	for (int p = 0; p < int(populationsize / 2) - 1; p++)
+
+	{
+		
+		randommachine = (rand() % Machines);//we select a random machine (if applicable)
+		randomjob = (rand() % Jobs);//we select a random job here
+
+
+
+
+		//now below, we swipe position of one job in all machines with another one
+		for (i = 0; i < Machines; i++)
+
+			swap(child[p].order[i][Jobs - 1 - randomjob], child[p].order[i][randomjob]);
+
+
+		ChElementsCalc(child[p], pindex);     	// calculating the fitness values for the new set and just random is for test
+
+		cmaxcalc(child[p]);
+	}         	// end of if
+
+
+	return(0);
+}                       //end of mutation
+
+void vectordimension(chrom ch[populationsize])
+{
+	for (int i = 0; i < populationsize; i++) {
+		ch[i].StartTime.resize(Machines);
+		ch[i].WaitingTime.resize(Machines);
+		ch[i].order.resize(Machines);
+		ch[i].finish.resize(Machines);
+	}
+
+
+	for (int i = 0; i < populationsize; i++)
+		for (int j = 0; j < Machines; j++)
+		{
+
+			ch[i].StartTime[j].resize(Jobs);
+			ch[i].WaitingTime[j].resize(Jobs);
+			ch[i].order[j].resize(Jobs);
+			ch[i].finish[j].resize(Jobs);
+
+
+		}
+
+	for (int i = 0; i < populationsize; i++)
+		for (int j = 0; j < Machines; j++)
+			for (int k = 0; k < Jobs; k++)
+			{
+				ch[i].StartTime[j][k] = 0;//vector members must be zero to be called by other functions and these values will be changed
+				ch[i].WaitingTime[j][k] = 0;
+				ch[i].finish[j][k] = 0;
+			}
+}
+
+float maximum(float a, float b)
+{
+	float max;
+	max = a;
+	if (b > a)
+		max = b;
+	return(max);
+
+}
+
+float min(float a, float b)
+{
+	float min;
+	min = a;
+	if (b < a)
+		min = b;
+	return(min);
+
+}
